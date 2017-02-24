@@ -78,15 +78,17 @@ type API struct {
 	resolveTimeout time.Duration
 	uptime         time.Time
 
-	groups func() dispatch.AlertOverview
+	groups groupsFn
 
 	// context is an indirection for testing.
 	context func(r *http.Request) context.Context
 	mtx     sync.RWMutex
 }
 
+type groupsFn func(string) dispatch.AlertOverview
+
 // New returns a new API.
-func New(alerts provider.Alerts, silences *silence.Silences, gf func() dispatch.AlertOverview) *API {
+func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn) *API {
 	return &API{
 		context:  route.Context,
 		alerts:   alerts,
@@ -189,7 +191,8 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 }
 
 func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
-	respond(w, api.groups())
+	filter := req.FormValue("filter")
+	respond(w, api.groups(filter))
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {

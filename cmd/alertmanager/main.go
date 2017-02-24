@@ -174,8 +174,8 @@ func main() {
 	)
 	defer disp.Stop()
 
-	apiv := api.New(alerts, silences, func() dispatch.AlertOverview {
-		return disp.Groups()
+	apiv := api.New(alerts, silences, func(filter string) dispatch.AlertOverview {
+		return disp.Groups(filter)
 	})
 
 	amURL, err := extURL(*listenAddress, *externalURL)

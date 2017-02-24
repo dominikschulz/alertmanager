@@ -8,6 +8,8 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/storage/metric"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -98,12 +100,29 @@ func (ao AlertOverview) Swap(i, j int)      { ao[i], ao[j] = ao[j], ao[i] }
 func (ao AlertOverview) Less(i, j int) bool { return ao[i].Labels.Before(ao[j].Labels) }
 func (ao AlertOverview) Len() int           { return len(ao) }
 
+func matchesFilterLabels(a *model.Alert, matchers metric.LabelMatchers) bool {
+	for _, m := range matchers {
+		// If matcher m is not present or is not a match, the alert
+		// does not match the filter.
+		if v, prs := a.Labels[m.Name]; prs && !m.Match(v) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Groups populates an AlertOverview from the dispatcher's internal state.
-func (d *Dispatcher) Groups() AlertOverview {
+func (d *Dispatcher) Groups(filter string) AlertOverview {
 	var overview AlertOverview
 
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
+
+	matchers, err := promql.ParseMetricSelector(filter)
+	if err != nil {
+		// TODO: Do we bail on a bad filter? Or just ignore it and continue on?
+	}
 
 	seen := map[model.Fingerprint]*AlertGroup{}
 
@@ -123,6 +142,10 @@ func (d *Dispatcher) Groups() AlertOverview {
 			var apiAlerts []*APIAlert
 			for _, a := range types.Alerts(ag.alertSlice()...) {
 				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
+					continue
+				}
+				// Read filter here to drop the alert.
+				if !matchesFilterLabels(a, matchers) {
 					continue
 				}
 				aa := &APIAlert{
