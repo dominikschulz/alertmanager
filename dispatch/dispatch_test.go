@@ -7,11 +7,67 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/storage/metric"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/types"
 )
+
+func TestFilterLabels(t *testing.T) {
+	var (
+		alertsSlices = [][]model.Alert{
+			[]model.Alert{
+				model.Alert{
+					Labels: model.LabelSet{
+						"a": "v1",
+						"b": "v2",
+						"c": "v3",
+					},
+					StartsAt: time.Now().Add(time.Minute),
+					EndsAt:   time.Now().Add(time.Hour),
+				},
+				model.Alert{
+					Labels: model.LabelSet{
+						"a": "v1",
+						"b": "v2",
+						"c": "v4",
+					},
+					StartsAt: time.Now().Add(-time.Hour),
+					EndsAt:   time.Now().Add(2 * time.Hour),
+				},
+				model.Alert{
+					Labels: model.LabelSet{
+						"a": "v1",
+						"b": "v2",
+						"c": "v5",
+					},
+					StartsAt: time.Now().Add(time.Minute),
+					EndsAt:   time.Now().Add(5 * time.Minute),
+				},
+			},
+		}
+	)
+
+	matcher, err := metric.NewLabelMatcher(metric.RegexMatch, "c", "v.*")
+	if err != nil {
+		t.Fatalf("error making matcher: %v", err)
+	}
+	matcher2, err := metric.NewLabelMatcher(metric.Equal, "a", "v1")
+	if err != nil {
+		t.Fatalf("error making matcher: %v", err)
+	}
+
+	matchers := []*metric.LabelMatcher{matcher, matcher2}
+
+	for _, alerts := range alertsSlices {
+		for _, a := range alerts {
+			if !matchesFilterLabels(&a, metric.LabelMatchers(matchers)) {
+				t.Fatalf("error: labelset %v should match %v", a.Labels, matchers)
+			}
+		}
+	}
+}
 
 func TestAggrGroup(t *testing.T) {
 	lset := model.LabelSet{
