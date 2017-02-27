@@ -134,7 +134,6 @@ func (d *Dispatcher) Groups(filter string) AlertOverview {
 				alertGroup.GroupKey = ag.GroupKey()
 
 				seen[ag.fingerprint()] = alertGroup
-				overview = append(overview, alertGroup)
 			}
 
 			now := time.Now()
@@ -165,6 +164,8 @@ func (d *Dispatcher) Groups(filter string) AlertOverview {
 				RouteOpts: &route.RouteOpts,
 				Alerts:    apiAlerts,
 			})
+
+			overview = append(overview, alertGroup)
 		}
 	}
 
