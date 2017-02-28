@@ -26,6 +26,8 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/promql"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/config"
@@ -85,7 +87,7 @@ type API struct {
 	mtx     sync.RWMutex
 }
 
-type groupsFn func(string) (dispatch.AlertOverview, error)
+type groupsFn func([]*labels.Matcher) dispatch.AlertOverview
 
 // New returns a new API.
 func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn) *API {
@@ -191,16 +193,20 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 }
 
 func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
-	filter := req.FormValue("filter")
-	groups, err := api.groups(filter)
-
-	if err != nil {
-		respondError(w, apiError{
-			typ: errorBadData,
-			err: err,
-		}, nil)
-		return
+	var err error
+	matchers := []*labels.Matcher{}
+	if filter := req.FormValue("filter"); filter != "" {
+		matchers, err = promql.ParseMetricSelector(filter)
+		if err != nil {
+			respondError(w, apiError{
+				typ: errorBadData,
+				err: err,
+			}, nil)
+			return
+		}
 	}
+
+	groups := api.groups(matchers)
 
 	respond(w, groups)
 }

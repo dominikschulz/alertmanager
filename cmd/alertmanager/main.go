@@ -47,6 +47,7 @@ import (
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/weaveworks/mesh"
 )
 
@@ -174,8 +175,8 @@ func main() {
 	)
 	defer disp.Stop()
 
-	apiv := api.New(alerts, silences, func(filter string) (dispatch.AlertOverview, error) {
-		return disp.Groups(filter)
+	apiv := api.New(alerts, silences, func(matchers []*labels.Matcher) dispatch.AlertOverview {
+		return disp.Groups(matchers)
 	})
 
 	amURL, err := extURL(*listenAddress, *externalURL)

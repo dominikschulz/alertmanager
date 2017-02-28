@@ -9,7 +9,6 @@ import (
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
-	"github.com/prometheus/prometheus/promql"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -113,16 +112,11 @@ func matchesFilterLabels(a *APIAlert, matchers []*labels.Matcher) bool {
 }
 
 // Groups populates an AlertOverview from the dispatcher's internal state.
-func (d *Dispatcher) Groups(filter string) (AlertOverview, error) {
+func (d *Dispatcher) Groups(matchers []*labels.Matcher) AlertOverview {
 	overview := AlertOverview{}
 
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
-
-	matchers, err := promql.ParseMetricSelector(filter)
-	if err != nil {
-		return nil, err
-	}
 
 	seen := map[model.Fingerprint]*AlertGroup{}
 
@@ -173,7 +167,7 @@ func (d *Dispatcher) Groups(filter string) (AlertOverview, error) {
 
 	sort.Sort(overview)
 
-	return overview, nil
+	return overview
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {
