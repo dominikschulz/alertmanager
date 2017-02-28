@@ -113,7 +113,7 @@ func matchesFilterLabels(a *model.Alert, matchers metric.LabelMatchers) bool {
 }
 
 // Groups populates an AlertOverview from the dispatcher's internal state.
-func (d *Dispatcher) Groups(filter string) AlertOverview {
+func (d *Dispatcher) Groups(filter string) (AlertOverview, error) {
 	overview := AlertOverview{}
 
 	d.mtx.RLock()
@@ -121,7 +121,7 @@ func (d *Dispatcher) Groups(filter string) AlertOverview {
 
 	matchers, err := promql.ParseMetricSelector(filter)
 	if err != nil {
-		// TODO: Do we bail on a bad filter? Or just ignore it and continue on?
+		return nil, err
 	}
 
 	seen := map[model.Fingerprint]*AlertGroup{}
@@ -171,7 +171,7 @@ func (d *Dispatcher) Groups(filter string) AlertOverview {
 
 	sort.Sort(overview)
 
-	return overview
+	return overview, nil
 }
 
 func (d *Dispatcher) run(it provider.AlertIterator) {

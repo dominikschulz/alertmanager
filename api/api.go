@@ -85,7 +85,7 @@ type API struct {
 	mtx     sync.RWMutex
 }
 
-type groupsFn func(string) dispatch.AlertOverview
+type groupsFn func(string) (dispatch.AlertOverview, error)
 
 // New returns a new API.
 func New(alerts provider.Alerts, silences *silence.Silences, gf groupsFn) *API {
@@ -192,7 +192,17 @@ func (api *API) status(w http.ResponseWriter, req *http.Request) {
 
 func (api *API) alertGroups(w http.ResponseWriter, req *http.Request) {
 	filter := req.FormValue("filter")
-	respond(w, api.groups(filter))
+	groups, err := api.groups(filter)
+
+	if err != nil {
+		respondError(w, apiError{
+			typ: errorBadData,
+			err: err,
+		}, nil)
+		return
+	}
+
+	respond(w, groups)
 }
 
 func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {

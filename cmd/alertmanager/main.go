@@ -174,7 +174,7 @@ func main() {
 	)
 	defer disp.Stop()
 
-	apiv := api.New(alerts, silences, func(filter string) dispatch.AlertOverview {
+	apiv := api.New(alerts, silences, func(filter string) (dispatch.AlertOverview, error) {
 		return disp.Groups(filter)
 	})
 
