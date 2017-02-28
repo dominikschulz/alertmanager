@@ -114,7 +114,7 @@ func matchesFilterLabels(a *model.Alert, matchers metric.LabelMatchers) bool {
 
 // Groups populates an AlertOverview from the dispatcher's internal state.
 func (d *Dispatcher) Groups(filter string) AlertOverview {
-	var overview AlertOverview
+	overview := AlertOverview{}
 
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
