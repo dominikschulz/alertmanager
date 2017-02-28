@@ -8,8 +8,8 @@ import (
 
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/promql"
-	"github.com/prometheus/prometheus/storage/metric"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
@@ -100,11 +100,11 @@ func (ao AlertOverview) Swap(i, j int)      { ao[i], ao[j] = ao[j], ao[i] }
 func (ao AlertOverview) Less(i, j int) bool { return ao[i].Labels.Before(ao[j].Labels) }
 func (ao AlertOverview) Len() int           { return len(ao) }
 
-func matchesFilterLabels(a *model.Alert, matchers metric.LabelMatchers) bool {
+func matchesFilterLabels(a *APIAlert, matchers []*labels.Matcher) bool {
 	for _, m := range matchers {
 		// If matcher m is not present or is not a match, the alert
 		// does not match the filter.
-		if v, prs := a.Labels[m.Name]; !prs || !m.Match(v) {
+		if v, prs := a.Labels[model.LabelName(m.Name)]; !prs || !m.Matches(string(v)) {
 			return false
 		}
 	}
@@ -143,14 +143,16 @@ func (d *Dispatcher) Groups(filter string) (AlertOverview, error) {
 				if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
 					continue
 				}
-				// Read filter here to drop the alert.
-				if !matchesFilterLabels(a, matchers) {
-					continue
-				}
 				aa := &APIAlert{
 					Alert:     a,
 					Inhibited: d.marker.Inhibited(a.Fingerprint()),
 				}
+
+				// Read filter here to drop the alert.
+				if !matchesFilterLabels(aa, matchers) {
+					continue
+				}
+
 				if sid, ok := d.marker.Silenced(a.Fingerprint()); ok {
 					aa.Silenced = sid
 				}

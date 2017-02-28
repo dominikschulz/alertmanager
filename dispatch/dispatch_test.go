@@ -7,84 +7,78 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/storage/metric"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"golang.org/x/net/context"
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/types"
 )
 
+func newAPIAlert(labels model.LabelSet) APIAlert {
+	return APIAlert{
+		Alert: &model.Alert{
+			Labels:   labels,
+			StartsAt: time.Now().Add(1 * time.Minute),
+			EndsAt:   time.Now().Add(1 * time.Hour),
+		},
+	}
+}
+
 func TestFilterLabels(t *testing.T) {
 
 	var (
-		a1 = model.Alert{
-			Labels: model.LabelSet{
-				"a": "v1",
-				"b": "v2",
-				"c": "v3",
-			},
-			StartsAt: time.Now().Add(time.Minute),
-			EndsAt:   time.Now().Add(time.Hour),
-		}
-		a2 = model.Alert{
-			Labels: model.LabelSet{
-				"a": "v1",
-				"b": "v2",
-				"c": "v4",
-			},
-			StartsAt: time.Now().Add(-time.Hour),
-			EndsAt:   time.Now().Add(2 * time.Hour),
-		}
-		a3 = model.Alert{
-			Labels: model.LabelSet{
-				"a": "v1",
-				"b": "v2",
-				"c": "v5",
-			},
-			StartsAt: time.Now().Add(time.Minute),
-			EndsAt:   time.Now().Add(5 * time.Minute),
-		}
-		a4 = model.Alert{
-			Labels: model.LabelSet{
-				"foo": "bar",
-				"baz": "qux",
-			},
-			StartsAt: time.Now().Add(time.Minute),
-			EndsAt:   time.Now().Add(5 * time.Minute),
-		}
+		a1 = newAPIAlert(model.LabelSet{
+			"a": "v1",
+			"b": "v2",
+			"c": "v3",
+		})
+		a2 = newAPIAlert(model.LabelSet{
+			"a": "v1",
+			"b": "v2",
+			"c": "v4",
+		})
+		a3 = newAPIAlert(model.LabelSet{
+			"a": "v1",
+			"b": "v2",
+			"c": "v5",
+		})
+		a4 = newAPIAlert(model.LabelSet{
+			"foo": "bar",
+			"baz": "qux",
+		})
 		alertsSlices = []struct {
-			in, want []model.Alert
+			in, want []APIAlert
 		}{
 			{
-				in:   []model.Alert{a1, a2, a3},
-				want: []model.Alert{a1, a2, a3},
+				in:   []APIAlert{a1, a2, a3},
+				want: []APIAlert{a1, a2, a3},
 			},
 			{
-				in:   []model.Alert{a1, a4},
-				want: []model.Alert{a1},
+				in:   []APIAlert{a1, a4},
+				want: []APIAlert{a1},
 			},
 			{
-				in:   []model.Alert{a4},
-				want: []model.Alert{},
+				in:   []APIAlert{a4},
+				want: []APIAlert{},
 			},
 		}
 	)
 
-	matcher, err := metric.NewLabelMatcher(metric.RegexMatch, "c", "v.*")
+	matcher, err := labels.NewMatcher(labels.MatchRegexp, "c", "v.*")
 	if err != nil {
 		t.Fatalf("error making matcher: %v", err)
 	}
-	matcher2, err := metric.NewLabelMatcher(metric.Equal, "a", "v1")
+	matcher2, err := labels.NewMatcher(labels.MatchEqual, "a", "v1")
 	if err != nil {
 		t.Fatalf("error making matcher: %v", err)
 	}
 
-	matchers := []*metric.LabelMatcher{matcher, matcher2}
+	matchers := []*labels.Matcher{matcher, matcher2}
 
 	for _, alerts := range alertsSlices {
-		got := []model.Alert{}
+		got := []APIAlert{}
 		for _, a := range alerts.in {
-			if matchesFilterLabels(&a, metric.LabelMatchers(matchers)) {
+			if matchesFilterLabels(&a, matchers) {
 				got = append(got, a)
 			}
 		}
