@@ -15,36 +15,57 @@ import (
 )
 
 func TestFilterLabels(t *testing.T) {
+
 	var (
-		alertsSlices = [][]model.Alert{
-			[]model.Alert{
-				model.Alert{
-					Labels: model.LabelSet{
-						"a": "v1",
-						"b": "v2",
-						"c": "v3",
-					},
-					StartsAt: time.Now().Add(time.Minute),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-				model.Alert{
-					Labels: model.LabelSet{
-						"a": "v1",
-						"b": "v2",
-						"c": "v4",
-					},
-					StartsAt: time.Now().Add(-time.Hour),
-					EndsAt:   time.Now().Add(2 * time.Hour),
-				},
-				model.Alert{
-					Labels: model.LabelSet{
-						"a": "v1",
-						"b": "v2",
-						"c": "v5",
-					},
-					StartsAt: time.Now().Add(time.Minute),
-					EndsAt:   time.Now().Add(5 * time.Minute),
-				},
+		a1 = model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v3",
+			},
+			StartsAt: time.Now().Add(time.Minute),
+			EndsAt:   time.Now().Add(time.Hour),
+		}
+		a2 = model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v4",
+			},
+			StartsAt: time.Now().Add(-time.Hour),
+			EndsAt:   time.Now().Add(2 * time.Hour),
+		}
+		a3 = model.Alert{
+			Labels: model.LabelSet{
+				"a": "v1",
+				"b": "v2",
+				"c": "v5",
+			},
+			StartsAt: time.Now().Add(time.Minute),
+			EndsAt:   time.Now().Add(5 * time.Minute),
+		}
+		a4 = model.Alert{
+			Labels: model.LabelSet{
+				"foo": "bar",
+				"baz": "qux",
+			},
+			StartsAt: time.Now().Add(time.Minute),
+			EndsAt:   time.Now().Add(5 * time.Minute),
+		}
+		alertsSlices = []struct {
+			in, want []model.Alert
+		}{
+			{
+				in:   []model.Alert{a1, a2, a3},
+				want: []model.Alert{a1, a2, a3},
+			},
+			{
+				in:   []model.Alert{a1, a4},
+				want: []model.Alert{a1},
+			},
+			{
+				in:   []model.Alert{a4},
+				want: []model.Alert{},
 			},
 		}
 	)
@@ -61,10 +82,14 @@ func TestFilterLabels(t *testing.T) {
 	matchers := []*metric.LabelMatcher{matcher, matcher2}
 
 	for _, alerts := range alertsSlices {
-		for _, a := range alerts {
-			if !matchesFilterLabels(&a, metric.LabelMatchers(matchers)) {
-				t.Fatalf("error: labelset %v should match %v", a.Labels, matchers)
+		got := []model.Alert{}
+		for _, a := range alerts.in {
+			if matchesFilterLabels(&a, metric.LabelMatchers(matchers)) {
+				got = append(got, a)
 			}
+		}
+		if !reflect.DeepEqual(got, alerts.want) {
+			t.Fatalf("error: returned alerts do not match:\ngot  %v\nwant %v", got, alerts.want)
 		}
 	}
 }

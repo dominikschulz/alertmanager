@@ -104,7 +104,7 @@ func matchesFilterLabels(a *model.Alert, matchers metric.LabelMatchers) bool {
 	for _, m := range matchers {
 		// If matcher m is not present or is not a match, the alert
 		// does not match the filter.
-		if v, prs := a.Labels[m.Name]; prs && !m.Match(v) {
+		if v, prs := a.Labels[m.Name]; !prs || !m.Match(v) {
 			return false
 		}
 	}
