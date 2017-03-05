@@ -51,6 +51,7 @@ Alerts Resolved:
 
 
 {{ define "email.default.subject" }}{{ template "__subject" . }}{{ end }}
+{{ define "email.default.plain" }}{{ template "__subject" . }} | {{ template "__alertmanagerURL" . }}{{ end }}
 {{ define "email.default.html" }}
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <!--

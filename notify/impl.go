@@ -15,16 +15,11 @@ package notify
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"mime"
-	"net"
 	"net/http"
-	"net/mail"
 	"net/smtp"
 	"net/url"
 	"strings"
@@ -189,166 +184,6 @@ func (w *Webhook) retry(statusCode int) (bool, error) {
 	// request and 5xx response codes are assumed to be recoverable.
 	if statusCode/100 != 2 {
 		return (statusCode/100 == 5), fmt.Errorf("unexpected status code %v from %s", statusCode, w.URL)
-	}
-
-	return false, nil
-}
-
-// Email implements a Notifier for email notifications.
-type Email struct {
-	conf *config.EmailConfig
-	tmpl *template.Template
-}
-
-// NewEmail returns a new Email notifier.
-func NewEmail(c *config.EmailConfig, t *template.Template) *Email {
-	if _, ok := c.Headers["Subject"]; !ok {
-		c.Headers["Subject"] = config.DefaultEmailSubject
-	}
-	if _, ok := c.Headers["To"]; !ok {
-		c.Headers["To"] = c.To
-	}
-	if _, ok := c.Headers["From"]; !ok {
-		c.Headers["From"] = c.From
-	}
-	return &Email{conf: c, tmpl: t}
-}
-
-// auth resolves a string of authentication mechanisms.
-func (n *Email) auth(mechs string) (smtp.Auth, error) {
-	username := n.conf.AuthUsername
-
-	for _, mech := range strings.Split(mechs, " ") {
-		switch mech {
-		case "CRAM-MD5":
-			secret := string(n.conf.AuthSecret)
-			if secret == "" {
-				continue
-			}
-			return smtp.CRAMMD5Auth(username, secret), nil
-
-		case "PLAIN":
-			password := string(n.conf.AuthPassword)
-			if password == "" {
-				continue
-			}
-			identity := n.conf.AuthIdentity
-
-			// We need to know the hostname for both auth and TLS.
-			host, _, err := net.SplitHostPort(n.conf.Smarthost)
-			if err != nil {
-				return nil, fmt.Errorf("invalid address: %s", err)
-			}
-			return smtp.PlainAuth(identity, username, password, host), nil
-		case "LOGIN":
-			password := string(n.conf.AuthPassword)
-			if password == "" {
-				continue
-			}
-			return LoginAuth(username, password), nil
-		}
-	}
-	return nil, nil
-}
-
-// Notify implements the Notifier interface.
-func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-	// Connect to the SMTP smarthost.
-	c, err := smtp.Dial(n.conf.Smarthost)
-	if err != nil {
-		return true, err
-	}
-	defer c.Quit()
-
-	// We need to know the hostname for both auth and TLS.
-	host, _, err := net.SplitHostPort(n.conf.Smarthost)
-	if err != nil {
-		return false, fmt.Errorf("invalid address: %s", err)
-	}
-
-	// Global Config guarantees RequireTLS is not nil
-	if *n.conf.RequireTLS {
-		if ok, _ := c.Extension("STARTTLS"); !ok {
-			return true, fmt.Errorf("require_tls: true (default), but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
-		}
-		tlsConf := &tls.Config{ServerName: host}
-		if err := c.StartTLS(tlsConf); err != nil {
-			return true, fmt.Errorf("starttls failed: %s", err)
-		}
-	}
-
-	if ok, mech := c.Extension("AUTH"); ok {
-		auth, err := n.auth(mech)
-		if err != nil {
-			return true, err
-		}
-		if auth != nil {
-			if err := c.Auth(auth); err != nil {
-				return true, fmt.Errorf("%T failed: %s", auth, err)
-			}
-		}
-	}
-
-	var (
-		data = n.tmpl.Data(receiverName(ctx), groupLabels(ctx), as...)
-		tmpl = tmplText(n.tmpl, data, &err)
-		from = tmpl(n.conf.From)
-		to   = tmpl(n.conf.To)
-	)
-	if err != nil {
-		return false, err
-	}
-
-	addrs, err := mail.ParseAddressList(from)
-	if err != nil {
-		return false, fmt.Errorf("parsing from addresses: %s", err)
-	}
-	if len(addrs) != 1 {
-		return false, fmt.Errorf("must be exactly one from address")
-	}
-	if err := c.Mail(addrs[0].Address); err != nil {
-		return true, fmt.Errorf("sending mail from: %s", err)
-	}
-	addrs, err = mail.ParseAddressList(to)
-	if err != nil {
-		return false, fmt.Errorf("parsing to addresses: %s", err)
-	}
-	for _, addr := range addrs {
-		if err := c.Rcpt(addr.Address); err != nil {
-			return true, fmt.Errorf("sending rcpt to: %s", err)
-		}
-	}
-
-	// Send the email body.
-	wc, err := c.Data()
-	if err != nil {
-		return true, err
-	}
-	defer wc.Close()
-
-	for header, t := range n.conf.Headers {
-		value, err := n.tmpl.ExecuteTextString(t, data)
-		if err != nil {
-			return false, fmt.Errorf("executing %q header template: %s", header, err)
-		}
-		fmt.Fprintf(wc, "%s: %s\r\n", header, mime.QEncoding.Encode("utf-8", value))
-	}
-
-	fmt.Fprintf(wc, "Content-Type: text/html; charset=UTF-8\r\n")
-	fmt.Fprintf(wc, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
-
-	// TODO: Add some useful headers here, such as URL of the alertmanager
-	// and active/resolved.
-	fmt.Fprintf(wc, "\r\n")
-
-	// TODO(fabxc): do a multipart write that considers the plain template.
-	body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
-	if err != nil {
-		return false, fmt.Errorf("executing email html template: %s", err)
-	}
-	_, err = io.WriteString(wc, body)
-	if err != nil {
-		return true, err
 	}
 
 	return false, nil

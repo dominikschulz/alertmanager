@@ -32,7 +32,8 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: false,
 		},
-		HTML: `{{ template "email.default.html" . }}`,
+		HTML:  `{{ template "email.default.html" . }}`,
+		Plain: `{{ template "email.default.plain" . }}`,
 	}
 
 	// DefaultEmailSubject defines the default Subject header of an Email.
@@ -140,6 +141,7 @@ type EmailConfig struct {
 	AuthIdentity string            `yaml:"auth_identity" json:"auth_identity"`
 	Headers      map[string]string `yaml:"headers" json:"headers"`
 	HTML         string            `yaml:"html" json:"html"`
+	Plain        string            `yaml:"plain" json:"plain"`
 	RequireTLS   *bool             `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
